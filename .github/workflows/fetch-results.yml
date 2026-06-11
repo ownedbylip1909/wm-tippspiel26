@@ -1,0 +1,44 @@
+name: Fetch Spieltag-1-Ergebnisse
+
+on:
+  schedule:
+    # Alle 30 Minuten zwischen 11. und 19. Juni (Zeitraum des 1. Spieltags + Puffer)
+    - cron: '*/30 * 11-19 6 *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tippspiel/package-lock.json
+
+      - name: Install dependencies
+        working-directory: tippspiel
+        run: npm ci
+
+      - name: Ergebnisse abrufen
+        working-directory: tippspiel
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+        run: node scripts/fetch-results.mjs
+
+      - name: Änderungen committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- tippspiel/src/data/results.json; then
+            echo "Keine Änderungen."
+          else
+            git add tippspiel/src/data/results.json
+            git commit -m "Aktualisiere Spieltag-1-Ergebnisse"
+            git push
+          fi

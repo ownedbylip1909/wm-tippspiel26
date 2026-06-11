@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { matches } from './data/matches'
+import autoResults from './data/results.json'
 import { flagEmoji } from './utils/flags'
 import { calcPoints, POINT_LABELS } from './utils/scoring'
 import './App.css'
@@ -69,7 +70,10 @@ function App() {
     const stored = loadFromStorage(TIPS_STORAGE_KEY)
     return { ...suggestionsAsTips(), ...stored }
   })
-  const [results, setResults] = useState(() => loadFromStorage(RESULTS_STORAGE_KEY))
+  const [results, setResults] = useState(() => {
+    const stored = loadFromStorage(RESULTS_STORAGE_KEY)
+    return { ...autoResults, ...stored }
+  })
 
   useEffect(() => {
     localStorage.setItem(TIPS_STORAGE_KEY, JSON.stringify(tips))
@@ -196,12 +200,15 @@ function App() {
                 const isFinished = result.tip1 !== '' && result.tip2 !== ''
                 const claudePoints = calcPoints(match.tip1, match.tip2, result.tip1, result.tip2)
                 const userPoints = calcPoints(tip.tip1, tip.tip2, result.tip1, result.tip2)
+                const auto = autoResults[match.id]
+                const isAuto = isFinished && auto && auto.tip1 === result.tip1 && auto.tip2 === result.tip2
 
                 return (
                   <article key={match.id} className={`match-card ${isFinished ? 'finished' : ''}`}>
                     <div className="match-header">
                       <span className="group-badge">Gruppe {match.group}</span>
                       <span className="status-badge">{isFinished ? 'Beendet' : 'Bevorstehend'}</span>
+                      {isAuto && <span className="auto-badge">🤖 automatisch erkannt</span>}
                       <span className={`tendenz tendenz-${match.tendenz}`}>{match.tendenz}</span>
                     </div>
                     <div className="teams">
