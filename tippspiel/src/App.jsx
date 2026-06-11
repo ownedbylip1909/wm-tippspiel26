@@ -6,7 +6,6 @@ import { calcPoints, POINT_LABELS } from './utils/scoring'
 import './App.css'
 
 const TIPS_STORAGE_KEY = 'wm2026-spieltag1-tipps'
-const RESULTS_STORAGE_KEY = 'wm2026-spieltag1-ergebnisse'
 
 const EMPTY_SCORE = { tip1: '', tip2: '' }
 
@@ -70,18 +69,9 @@ function App() {
     const stored = loadFromStorage(TIPS_STORAGE_KEY)
     return { ...suggestionsAsTips(), ...stored }
   })
-  const [results, setResults] = useState(() => {
-    const stored = loadFromStorage(RESULTS_STORAGE_KEY)
-    return { ...autoResults, ...stored }
-  })
-
   useEffect(() => {
     localStorage.setItem(TIPS_STORAGE_KEY, JSON.stringify(tips))
   }, [tips])
-
-  useEffect(() => {
-    localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(results))
-  }, [results])
 
   const grouped = useMemo(() => {
     const byDate = new Map()
@@ -97,14 +87,6 @@ function App() {
     setTips((prev) => ({
       ...prev,
       [id]: { ...prev[id], [field]: value },
-    }))
-  }
-
-  function updateResult(id, field, rawValue) {
-    const value = rawValue === '' ? '' : Math.max(0, Math.min(20, Number(rawValue)))
-    setResults((prev) => ({
-      ...prev,
-      [id]: { ...(prev[id] ?? EMPTY_SCORE), [field]: value },
     }))
   }
 
@@ -124,18 +106,6 @@ function App() {
     setTips(Object.fromEntries(matches.map((m) => [m.id, { ...EMPTY_SCORE }])))
   }
 
-  function clearResult(id) {
-    setResults((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }
-
-  function clearAllResults() {
-    setResults({})
-  }
-
   const filledCount = matches.filter((m) => {
     const t = tips[m.id]
     return t && t.tip1 !== '' && t.tip2 !== ''
@@ -146,7 +116,7 @@ function App() {
     let userTotal = 0
     let finishedCount = 0
     for (const match of matches) {
-      const result = results[match.id] ?? EMPTY_SCORE
+      const result = autoResults[match.id] ?? EMPTY_SCORE
       const tip = tips[match.id] ?? EMPTY_SCORE
       const cp = calcPoints(match.tip1, match.tip2, result.tip1, result.tip2)
       if (cp === null) continue
@@ -156,7 +126,7 @@ function App() {
       finishedCount += 1
     }
     return { claudeTotal, userTotal, finishedCount }
-  }, [tips, results])
+  }, [tips])
 
   return (
     <div className="app">
@@ -164,14 +134,13 @@ function App() {
         <h1>WM 2026 – Tippspiel: 1. Spieltag</h1>
         <p className="subtitle">
           Vorgeschlagene Tipps basieren auf FIFA-Ranking &amp; Form der letzten 5
-          Länderspiele. Trag deine eigenen Tipps und nach Spielende die
-          Endergebnisse ein – alles wird automatisch lokal in deinem Browser
-          gespeichert.
+          Länderspiele. Trag deine eigenen Tipps ein – sie werden automatisch
+          lokal in deinem Browser gespeichert. Die Endergebnisse werden nach
+          Spielende automatisch von football-data.org abgerufen.
         </p>
         <div className="actions">
           <button onClick={applyAllSuggestions}>Alle Claude-Tipps übernehmen</button>
           <button className="secondary" onClick={clearAllTips}>Alle Tipps leeren</button>
-          <button className="secondary" onClick={clearAllResults}>Alle Ergebnisse zurücksetzen</button>
           <span className="progress">{filledCount} / {matches.length} Tipps abgegeben</span>
         </div>
 
@@ -196,19 +165,17 @@ function App() {
             <div className="match-grid">
               {dateMatches.map((match) => {
                 const tip = tips[match.id] ?? EMPTY_SCORE
-                const result = results[match.id] ?? EMPTY_SCORE
+                const result = autoResults[match.id] ?? EMPTY_SCORE
                 const isFinished = result.tip1 !== '' && result.tip2 !== ''
                 const claudePoints = calcPoints(match.tip1, match.tip2, result.tip1, result.tip2)
                 const userPoints = calcPoints(tip.tip1, tip.tip2, result.tip1, result.tip2)
-                const auto = autoResults[match.id]
-                const isAuto = isFinished && auto && auto.tip1 === result.tip1 && auto.tip2 === result.tip2
 
                 return (
                   <article key={match.id} className={`match-card ${isFinished ? 'finished' : ''}`}>
                     <div className="match-header">
                       <span className="group-badge">Gruppe {match.group}</span>
                       <span className="status-badge">{isFinished ? 'Beendet' : 'Bevorstehend'}</span>
-                      {isAuto && <span className="auto-badge">🤖 automatisch erkannt</span>}
+                      {isFinished && <span className="auto-badge">🤖 automatisch erkannt</span>}
                       <span className={`tendenz tendenz-${match.tendenz}`}>{match.tendenz}</span>
                     </div>
                     <div className="teams">
@@ -243,13 +210,8 @@ function App() {
                       />
                       <ScoreRow
                         label="Ergebnis"
-                        score1={result.tip1}
-                        score2={result.tip2}
-                        editable
-                        onChange1={(e) => updateResult(match.id, 'tip1', e.target.value)}
-                        onChange2={(e) => updateResult(match.id, 'tip2', e.target.value)}
-                        ariaTeam1={`Endergebnis Tore ${match.team1}`}
-                        ariaTeam2={`Endergebnis Tore ${match.team2}`}
+                        score1={isFinished ? result.tip1 : '–'}
+                        score2={isFinished ? result.tip2 : '–'}
                       />
                     </div>
 
@@ -258,11 +220,6 @@ function App() {
                       <button className="link" onClick={() => applySuggestion(match.id)}>
                         Claude-Tipp übernehmen
                       </button>
-                      {isFinished && (
-                        <button className="link" onClick={() => clearResult(match.id)}>
-                          Ergebnis zurücksetzen
-                        </button>
-                      )}
                     </div>
                   </article>
                 )
